@@ -14,7 +14,12 @@
       If violations are identifed, please recommend remediations.
       1. **Problem Identification:** Highlight the problem
       2. **Manual Remediation:** Suggest manual remediations
-      3. **Automated Remediation:** Suggest Ansible playbook to reconfigure based on manual remediations. 
+    inference_response_playbook: |
+      You are a Department of Defense systems engineer who is applying STIG's to RHEL hosts.
+      Create a playbook named "Re-baseline protected configuration files"
+      Playbooks should be formatted using fully qualified content names (FQCN).
+      If violations are identifed, please recommend remediations.
+      1. **Automated Remediation:** Suggest Ansible playbook to reconfigure based on manual remediations. 
 
   tasks:
 
@@ -56,32 +61,52 @@
           messages:
             - role: "system"
               content: "{{ inference_system_prompt }}"
-              # content: | 
-              #   You are a Department of Defense systems engineer who is applying STIG's to RHEL hosts.
-              #   If violations are identifed, please recommend remediations.
-              #   1. **Problem Identification:** Highlight the problem
-              #   2. **Manual Remediation:** Suggest manual remediations
-              #   3. **Automated Remediation:** Suggest Ansible playbook to reconfigure based on manual remediations. Playbooks should be formatted using fully qualified content names (FQCN).
             - role: "user"
               content: "{{ final_prompt }}"
         body_format: json
         return_content: true
         status_code: 200
         timeout: 120
-      register: response
+      register: response_guide
+
+    - name: Send RCA prompt to RHEL AI (Root Cause Analysis)
+      ansible.builtin.uri:
+        url: https://{{ inference_endpoint }}:443/v1/chat/completions
+        method: POST
+        headers:
+          accept: "application/json"
+          Content-Type: "application/json"
+          Authorization: "Bearer {{ token }}"
+        body:
+          # prompt: "{{ final_prompt }}"
+          model: granite-3-3-8b-instruct
+          messages:
+            - role: "system"
+              content: "{{ inference_response_playbook }}"
+            - role: "user"
+              content: "{{ final_prompt }}"
+        body_format: json
+        return_content: true
+        status_code: 200
+        timeout: 120
+      register: response_playbook
 
     # - name: Get message content
     #   ansible.builtin.set_fact:
     #     pretty_rca: "{{ response.content.choices[0].content }}"
 
-    - name: Show the API response
+    - name: Show the API response (initial help)
       ansible.builtin.debug:
         msg: "{{ response.json }}"
 
-    - name: Set the fact for the AI generated playbook
-      ansible.builtin.set_fact:
-        remediation_playbook: "{{ response.json.playbook | from_yaml }}"
-
-    - name: Display the generated playbook in YAML format
+    - name: Show the API response (playbook)
       ansible.builtin.debug:
-        msg: "{{ remediation_playbook | to_nice_yaml(sort_keys=False) }}"
+        msg: "{{ response.json }}"
+
+    # - name: Set the fact for the AI generated playbook
+    #   ansible.builtin.set_fact:
+    #     remediation_playbook: "{{ response.json.playbook | from_yaml }}"
+
+    # - name: Display the generated playbook in YAML format
+    #   ansible.builtin.debug:
+    #     msg: "{{ remediation_playbook | to_nice_yaml(sort_keys=False) }}"
