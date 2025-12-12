@@ -9,15 +9,13 @@
   vars:
     inference_system_prompt: |
       You are a Department of Defense systems engineer who is applying STIG's to RHEL hosts.
-      Create a playbook named "Re-baseline protected configuration files"
-      Playbooks should be formatted using fully qualified content names (FQCN).
       If violations are identifed, please recommend remediations.
       1. **Problem Identification:** Highlight the problem
       2. **Manual Remediation:** Suggest manual remediations
     inference_response_playbook: |
       You are a Department of Defense systems engineer who is applying STIG's to RHEL hosts.
       Create a playbook named "Re-baseline protected configuration files"
-      Playbooks should be formatted using fully qualified content names (FQCN).
+      Playbooks should be formatted using fully qualified content names (FQCN) for example ansible.builtin.file.
       If violations are identifed, please recommend remediations.
       1. **Automated Remediation:** Suggest Ansible playbook to reconfigure based on manual remediations. 
 
