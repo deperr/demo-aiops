@@ -97,11 +97,11 @@
 
     - name: Show the API response (initial help)
       ansible.builtin.debug:
-        msg: "{{ response.json }}"
+        msg: "{{ response_guide.json }}"
 
     - name: Show the API response (playbook)
       ansible.builtin.debug:
-        msg: "{{ response.json }}"
+        msg: "{{ response_playbook.json }}"
 
     # - name: Set the fact for the AI generated playbook
     #   ansible.builtin.set_fact:
