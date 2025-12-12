@@ -70,9 +70,9 @@
         timeout: 120
       register: response
 
-    - name: Get message content
-      ansible.builtin.set_fact:
-        pretty_rca: "{{ response.content.choices[0].content }}"
+    # - name: Get message content
+    #   ansible.builtin.set_fact:
+    #     pretty_rca: "{{ response.content.choices[0].content }}"
 
     - name: Show the API response
       ansible.builtin.debug:
