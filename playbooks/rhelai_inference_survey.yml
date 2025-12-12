@@ -1,74 +1,89 @@
 ---
+
 - name: Send API request and debug complete response
   hosts: localhost
   gather_facts: false
+  vars_files:
+    - ../vault.yml
+
+  vars:
+    inference_system_prompt: |
+      You are a Department of Defense systems engineer who is applying STIG's to RHEL hosts.
+      Create a playbook named "Re-baseline protected configuration files"
+      Playbooks should be formatted using fully qualified content names (FQCN).
+      If violations are identifed, please recommend remediations.
+      1. **Problem Identification:** Highlight the problem
+      2. **Manual Remediation:** Suggest manual remediations
+      3. **Automated Remediation:** Suggest Ansible playbook to reconfigure based on manual remediations. 
+
   tasks:
-    - name: Set facts
-      ansible.builtin.set_fact:
-        rhelai_server: "{{ rhelai_server_input | default('rhelai') }}"
-        rhelai_port: "{{ rhelai_port_input | default('8000') }}"
-        rhelai_token: "{{ rhelai_token_input | default('ansible123!') }}"
+
 
     - name: Send POST request using uri module
       ansible.builtin.uri:
-        url: "http://{{ rhelai_server }}:{{ rhelai_port }}/v1/completions"
+        # url: http://<url>:8000/stig-logs?logs={{ log_output | urlencode }}
+        url: "http://{{rag_endpoint}}:8000/stig-logs?logs={{ log_output | urlencode }}"
         method: POST
         headers:
           accept: "application/json"
-          Content-Type: "application/json"
-          Authorization: "Bearer {{ rhelai_token }}"
-        body:
-          prompt: "{{ gpt_prompt | default('What is the capital of the USA?') }}"
-          max_tokens: "{{ max_tokens | default('50') }}"
-          model: "/root/.cache/instructlab/models/granite-8b-lab-v1"
-          temperature: "{{ input_temperature | default(0) }}"
-          top_p: "{{ input_top_p | default(1) }}"
-          n: "{{ input_n | default(1) }}"
-        body_format: json
+        body: ""
+        body_format: raw
         return_content: true
         status_code: 200
         timeout: 60
-      register: gpt_response
+      register: rag_response
+
+    - name: Combine output and set fact
+      ansible.builtin.set_fact:
+        final_prompt: |
+
+          RAG Context:
+          {{ rag_response }}
+
+          Log output:
+          {{ log_output }}
 
     - name: Send RCA prompt to RHEL AI (Root Cause Analysis)
       ansible.builtin.uri:
-        url: "http://{{ rhelai_server }}:{{ rhelai_port }}/v1/completions"
+        # url: https://<url>:443/v1/chat/completions
+        url: https://{{ inference_endpoint }}:443/v1/chat/completions
         method: POST
         headers:
           accept: "application/json"
           Content-Type: "application/json"
-          Authorization: "Bearer {{ rhelai_token }}"
+          Authorization: "Bearer {{ token }}"
         body:
-          prompt: "{{ rca_prompt }}"
-          max_tokens: "{{ rca_max_tokens | default(500) }}"
-          model: "/root/.cache/instructlab/models/granite-8b-lab-v1"
-          temperature: "{{ input_temperature | default(0.5) }}"
-          top_p: "{{ input_top_p | default(1) }}"
-          n: "{{ input_n | default(1) }}"
+          # prompt: "{{ final_prompt }}"
+          model: granite-3-3-8b-instruct
+          messages:
+            - role: "system"
+              content: "{{ inference_system_prompt }}"
+              # content: | 
+              #   You are a Department of Defense systems engineer who is applying STIG's to RHEL hosts.
+              #   If violations are identifed, please recommend remediations.
+              #   1. **Problem Identification:** Highlight the problem
+              #   2. **Manual Remediation:** Suggest manual remediations
+              #   3. **Automated Remediation:** Suggest Ansible playbook to reconfigure based on manual remediations. Playbooks should be formatted using fully qualified content names (FQCN).
+            - role: "user"
+              content: "{{ final_prompt }}"
         body_format: json
         return_content: true
         status_code: 200
         timeout: 120
-      register: rca_response
+      register: response
 
-    - name: Check if response is JSON and debug output
+    - name: Get message content
+      ansible.builtin.set_fact:
+        pretty_rca: "{{ response.content.choices[0].content }}"
+
+    - name: Show the API response
       ansible.builtin.debug:
-        msg: "{{ gpt_response.json if gpt_response.json is defined else gpt_response.content }}"
+        msg: "{{ response.json }}"
 
-    - name: Check if response is JSON and debug rca output
+    - name: Set the fact for the AI generated playbook
+      ansible.builtin.set_fact:
+        remediation_playbook: "{{ response.json.playbook | from_yaml }}"
+
+    - name: Display the generated playbook in YAML format
       ansible.builtin.debug:
-        msg: "{{ rca_response.json if rca_response.json is defined else rca_response.content }}"
-
-    - name: Set stats for next controller job
-      ansible.builtin.set_stats:
-        data:
-          gpt_response: "{{ gpt_response }}"
-          rca_response: "{{ rca_response }}"
-
-    - name: Debug gpt response
-      ansible.builtin.debug:
-        var: gpt_response
-
-    - name: Debug RCA response
-      ansible.builtin.debug:
-        var: rca_response
+        msg: "{{ remediation_playbook | to_nice_yaml(sort_keys=False) }}"
