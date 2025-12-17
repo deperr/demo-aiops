@@ -1,5 +1,4 @@
 ---
-
 - name: Send API request and debug complete response
   hosts: localhost
   gather_facts: false
@@ -18,12 +17,27 @@
       Playbooks should be formatted using fully qualified content names (FQCN) for example ansible.builtin.file.
       If violations are identifed, please recommend remediations.
       1. **Automated Remediation:** Suggest Ansible playbook to reconfigure based on manual remediations. 
+    log_output: |
+      × httpd.service - The Apache HTTP Server
+           Loaded: loaded (/usr/lib/systemd/system/httpd.service; disabled; preset: disabled)
+           Active: failed (Result: exit-code) since Tue 2025-04-08 15:56:15 UTC; 1h 11min ago
+         Duration: 1min 9.506s
+             Docs: man:httpd.service(8)
+          Process: 4099 ExecStart=/usr/sbin/httpd $OPTIONS -DFOREGROUND (code=exited, status=1/FAILURE)
+         Main PID: 4099 (code=exited, status=1/FAILURE)
+           Status: "Reading configuration..."
+              CPU: 58ms
+     
+      Apr 08 15:56:15 node1.example.com systemd[1]: Starting The Apache HTTP Server...
+      Apr 08 15:56:15 node1.example.com httpd[4099]: AH00526: Syntax error on line 35 of /etc/httpd/conf/httpd.conf:
+      Apr 08 15:56:15 node1.example.com httpd[4099]: Invalid command 'InvalidDirectiveHere', perhaps misspelled or defined by a module not included in the server configuration
+      Apr 08 15:56:15 node1.example.com systemd[1]: httpd.service: Main process exited, code=exited, status=1/FAILURE
+      Apr 08 15:56:15 node1.example.com systemd[1]: httpd.service: Failed with result 'exit-code'.
+      Apr 08 15:56:15 node1.example.com systemd[1]: Failed to start The Apache HTTP Server.
 
   tasks:
-
     - name: Send POST request using uri module
       ansible.builtin.uri:
-        # url: http://<url>:8000/stig-logs?logs={{ log_output | urlencode }}
         url: "http://{{rag_endpoint}}:8000/stig-logs?logs={{ log_output | urlencode }}"
         method: POST
         headers:
@@ -54,7 +68,6 @@
           Content-Type: "application/json"
           Authorization: "Bearer {{ token }}"
         body:
-          # prompt: "{{ final_prompt }}"
           model: granite-3-3-8b-instruct
           messages:
             - role: "system"
@@ -76,7 +89,6 @@
           Content-Type: "application/json"
           Authorization: "Bearer {{ token }}"
         body:
-          # prompt: "{{ final_prompt }}"
           model: granite-3-3-8b-instruct
           messages:
             - role: "system"
@@ -89,10 +101,6 @@
         timeout: 120
       register: response_playbook
 
-    # - name: Get message content
-    #   ansible.builtin.set_fact:
-    #     pretty_rca: "{{ response.content.choices[0].content }}"
-
     - name: Show the API response (initial help)
       ansible.builtin.debug:
         msg: "{{ response_guide.json }}"
@@ -100,11 +108,3 @@
     - name: Show the API response (playbook)
       ansible.builtin.debug:
         msg: "{{ response_playbook.json }}"
-
-    # - name: Set the fact for the AI generated playbook
-    #   ansible.builtin.set_fact:
-    #     remediation_playbook: "{{ response.json.playbook | from_yaml }}"
-
-    # - name: Display the generated playbook in YAML format
-    #   ansible.builtin.debug:
-    #     msg: "{{ remediation_playbook | to_nice_yaml(sort_keys=False) }}"
